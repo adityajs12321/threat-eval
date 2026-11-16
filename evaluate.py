@@ -12,6 +12,7 @@ import math
 from pathlib import Path
 
 from baseline_retriever import CORPUS_PATH, BaselineRetriever
+from char_ngram_retriever import CharNgramRetriever
 
 GOLD_PATH = Path(__file__).resolve().parent / "gold_set.json"
 def _embedding(corpus_path: Path):
@@ -22,6 +23,7 @@ def _embedding(corpus_path: Path):
 RETRIEVERS = {
     "baseline": BaselineRetriever,
     "baseline-extra": lambda corpus_path: BaselineRetriever(corpus_path, index_extra_fields=True),
+    "char-ngram": CharNgramRetriever,
     "embedding": _embedding,
 }
 
