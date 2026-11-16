@@ -45,7 +45,7 @@ To query a retriever directly:
 
 All metrics use binary relevance from `gold_set.json` and are averaged over the 15 queries.
 
-- **Precision@k** = hits in top k / k (standard, unnormalised). k is capped only at the corpus size (30). Most queries have 1–3 relevant records, so even a perfect retriever can't reach 1.0: the best achievable mean on this gold set is **P@1 1.000, P@3 0.622, P@5 0.373, P@10 0.187**. Read P@k against that ceiling, not against 1.0.
+- **Precision@k** = hits in top k / k (standard, unnormalised). k is capped only at the corpus size (30). Most queries have 1–3 relevant records, so even a perfect retriever can't reach 1.0: the best achievable mean on this gold set is **P@1 1.000, P@3 0.622, P@5 0.373, P@10 0.187**.
 - **Recall@k** = hits in top k / number of relevant records.
 - **MRR@k** = 1 / rank of the first relevant record (0 if none in the top k).
 - **nDCG@k** = DCG / ideal DCG, where a hit at rank i contributes 1 / log2(i + 1).
@@ -68,7 +68,6 @@ All metrics use binary relevance from `gold_set.json` and are averaged over the 
 | embedding | 3 | 0.489 | 0.867 | 0.867 | 0.832 |
 | embedding | 5 | **0.320** | **0.911** | **0.880** | **0.857** |
 | embedding | 10 | 0.167 | 0.933 | 0.880 | 0.867 |
-| *ceiling (perfect retriever)* | 5 | *0.373* | *1.000* | *1.000* | *1.000* |
 
 Change at k=5 relative to the baseline:
 
@@ -103,13 +102,13 @@ Change at k=5 relative to the baseline:
 
 **Where it helps:**
 
-- **Q09 (UI-only role check) goes 0/2 → 2/2, but T-018 is found through the word "non"** (from "non-admin" in its mitigation). That's the same incidental token that made the baseline rank the wrong record first ("non-owners" vs "non-cryptographic"). A CSRF record (T-019) still ranks first on "operations". The gain is real on paper but not a sign that the retriever understands the query.
+- **Q09 (UI-only role check) goes 0/2 → 2/2, but T-018 is found through the word "non"** (from "non-admin" in its mitigation). This is the same token that made the baseline rank the wrong record first ("non-owners" vs "non-cryptographic"). A CSRF record (T-019) still ranks first on "operations". The gain is real on paper but not a sign that the retriever understands the query.
 - Q02 finds T-007 via "requests" and "link" in its mitigation; Q03, Q10 and Q13 rank the right records higher.
 
 **Where it hurts:**
 
 - **Q01 (IDOR) loses a relevant record: 2/3 → 1/3.** With mitigation text appended, every record is longer, so each shared term contributes less to the length-normalised TF-IDF score. T-016 (invoice IDOR) shares a single term with the query ("returns"), so the dilution drops it from rank 5 to 7. Meanwhile T-006 (MFA skip) rises to rank 3 on the word "just" from its mitigation. Adding text dilutes real matches and creates new incidental ones.
-- **Q15 (password-reset takeover): the correct record drops from rank 2 to 3.** T-027 (MD5 password hashing) repeats "password" in its mitigation ("Rehash all passwords with a slow, salted, purpose-built password hash…") and now outranks the reset-token record T-028.
+- **Q15 (password-reset takeover): the correct record drops from rank 2 to 3.** T-027 (MD5 password hashing) repeats "password" in its mitigation ("Rehash all passwords with a slow, salted, purpose-built password hash…") and now outranks T-028.
 
 Mitigation text is written in the corpus's own vocabulary ("egress proxy", "role check", "redact Authorization headers"), not in the words users use to describe systems. So it widens the lexical surface without bridging the vocabulary gap that `FAILURE_ANALYSIS.md` identifies as the main failure.
 
