@@ -1,0 +1,212 @@
+[
+  {
+    "id": "T-001",
+    "title": "Unsanitized search query reaches SQL WHERE clause",
+    "description": "The product search endpoint builds its SQL WHERE clause by concatenating the raw 'q' query parameter into the statement string. An attacker can inject SQL syntax to alter the query logic or extract data from other tables via UNION-based injection.",
+    "category": "SQL Injection",
+    "mitigation": "Use parameterized queries / prepared statements for all search filters; never build SQL via string concatenation of request input."
+  },
+  {
+    "id": "T-002",
+    "title": "Login form concatenates username into SQL query",
+    "description": "The authentication service builds its user-lookup query by directly interpolating the submitted username field into a SQL string. Submitting a crafted username (e.g. containing ' OR '1'='1) can bypass the password check entirely and authenticate as an arbitrary account.",
+    "category": "SQL Injection",
+    "mitigation": "Switch the login lookup to a parameterized query; add a regression test asserting that SQL metacharacters in the username field cannot alter the query's logic."
+  },
+  {
+    "id": "T-003",
+    "title": "Blind boolean-based injection in product filter sort parameter",
+    "description": "The 'sort' parameter on the product listing API is passed into an ORDER BY clause without validation against an allow-list of column names. Because the response doesn't change visibly on error, exploitation requires blind boolean or time-based techniques, but the underlying injection point is real and automatable.",
+    "category": "SQL Injection",
+    "mitigation": "Validate 'sort' against a fixed allow-list of known column names before building the query; never interpolate client-controlled identifiers into SQL syntax."
+  },
+  {
+    "id": "T-004",
+    "title": "JWT algorithm confusion allows forging admin tokens",
+    "description": "The API's JWT verification library accepts the algorithm named in the token header rather than pinning a single expected algorithm. An attacker who obtains the service's RSA public key can craft a token signed with HS256 using that public key as the HMAC secret, and the verifier accepts it as valid, including an attacker-chosen role claim.",
+    "category": "Authentication Bypass",
+    "mitigation": "Pin verification to a single expected algorithm (e.g. RS256 only) at the call site; reject any token whose header names a different algorithm, including 'none'."
+  },
+  {
+    "id": "T-005",
+    "title": "Session identifier not regenerated after login",
+    "description": "The application issues a session cookie on first page load, before authentication, and keeps using that same session identifier after a successful login (session fixation). An attacker who can set a victim's pre-auth session cookie (e.g. via a subdomain or a crafted link) can hijack the victim's post-login session.",
+    "category": "Authentication Bypass",
+    "mitigation": "Regenerate the session identifier immediately on successful authentication and invalidate the pre-login session server-side."
+  },
+  {
+    "id": "T-006",
+    "title": "Step-up MFA can be skipped by replaying a pre-MFA session cookie",
+    "description": "After password verification but before the MFA code is checked, the server already issues a session cookie marked as a 'pending-mfa' state. Several API endpoints do not check for this pending state and treat the cookie as a fully authenticated session, letting an attacker who captures that intermediate cookie skip the MFA step entirely.",
+    "category": "Authentication Bypass",
+    "mitigation": "Enforce the pending-MFA session state as a server-side authorization gate on every endpoint, not just the login UI flow; deny all non-MFA-related requests until the second factor is verified."
+  },
+  {
+    "id": "T-007",
+    "title": "Webhook URL field lets server fetch internal metadata endpoint",
+    "description": "The integrations feature lets a customer register a webhook URL that the backend will POST to. The backend fetches whatever URL is given with no restriction, so a customer can point it at the cloud provider's instance metadata service (e.g. 169.254.169.254) and have the response reflected back, leaking instance credentials.",
+    "category": "Server-Side Request Forgery",
+    "mitigation": "Block requests to link-local, loopback and private IP ranges in the outbound HTTP client used for webhook delivery, resolved after DNS resolution, not just by string-matching the hostname."
+  },
+  {
+    "id": "T-008",
+    "title": "PDF export fetches attacker-supplied image URL server-side, reaching internal network",
+    "description": "The report-to-PDF feature embeds images by having the server fetch an 'image_url' field from the submitted document and inline the bytes into the generated PDF. Because this fetch happens server-side with no destination restriction, it can be used to probe or reach internal-only services that are not otherwise exposed to the customer.",
+    "category": "Server-Side Request Forgery",
+    "mitigation": "Route all server-side fetches of user-supplied URLs through an egress proxy that enforces a destination allow-list (or at minimum blocks private/internal address ranges)."
+  },
+  {
+    "id": "T-009",
+    "title": "DNS rebinding bypasses allow-list on outbound URL fetcher",
+    "description": "The outbound URL fetcher used for webhook and preview-image features checks the target IP address once at validation time but resolves the hostname again (a second DNS lookup) when it actually performs the HTTP request. An attacker can pass DNS resolution first to a public IP, then rebind the same hostname to an internal address before the actual fetch occurs.",
+    "category": "Server-Side Request Forgery",
+    "mitigation": "Resolve the hostname exactly once, validate that single resolved IP, and perform the actual connection against that pinned IP rather than re-resolving the hostname."
+  },
+  {
+    "id": "T-010",
+    "title": "API keys written to application logs in plaintext on request failure",
+    "description": "When an outbound call to a third-party AI provider fails, the error-handling path logs the full request object, including the Authorization header carrying the API key, at INFO level. These logs are shipped to a centralized logging service that a broader set of engineers can query.",
+    "category": "Secrets Exposure",
+    "mitigation": "Redact Authorization headers and any field named in a credential denylist before any log statement; add an automated check that fails CI if a raw Authorization header reaches a logger call."
+  },
+  {
+    "id": "T-011",
+    "title": "Database connection string committed to a public repository",
+    "description": "A configuration file containing the production database connection string, including the embedded password, was committed to a repository that was later made public as part of an open-source release. The credential was live for an unknown period before rotation.",
+    "category": "Secrets Exposure",
+    "mitigation": "Never commit live credentials to source control; load them from a secrets manager or environment at runtime, and run a secret-scanning tool in CI to catch this class of mistake before merge."
+  },
+  {
+    "id": "T-012",
+    "title": "Stack traces returned to the client expose internal file paths and env values",
+    "description": "When an unhandled exception occurs, the API's default error handler serializes the full exception, including the stack trace and, in some cases, local variable values, directly into the HTTP response body. This has exposed internal file system paths, and in at least one case, a database password that was in scope as a local variable at the point of failure.",
+    "category": "Secrets Exposure",
+    "mitigation": "Return a generic error response to clients in all non-debug environments; log the full exception server-side only, and audit which code paths might place secrets into local variables that could appear in a trace."
+  },
+  {
+    "id": "T-013",
+    "title": "Stored XSS via unsanitized rich-text comment field",
+    "description": "The comments feature allows a limited set of rich-text HTML (bold, links, lists) but the server-side sanitizer does not strip 'on*' event-handler attributes from allowed tags. A comment containing an <a> tag with an onmouseover handler executes attacker JavaScript in the browser of any user who views the comment thread.",
+    "category": "Cross-Site Scripting",
+    "mitigation": "Use an allow-list HTML sanitizer that strips all attributes not explicitly permitted (never a denylist of 'dangerous' attributes); add a test asserting event-handler attributes are stripped from every permitted tag."
+  },
+  {
+    "id": "T-014",
+    "title": "Reflected XSS in search results page via query parameter",
+    "description": "The search results page echoes the submitted query string back into the page as part of a 'Results for: <query>' heading, using direct string interpolation into the HTML template without escaping. A crafted search URL containing a <script> payload executes when a victim is tricked into clicking it.",
+    "category": "Cross-Site Scripting",
+    "mitigation": "Ensure the templating engine's auto-escaping is applied to this field (confirm it isn't marked as a trusted/raw/safe string anywhere in the render path)."
+  },
+  {
+    "id": "T-015",
+    "title": "DOM-based XSS from URL fragment parsed by client-side router",
+    "description": "The single-page application's client-side router reads a tab name from the URL fragment (after the #) and inserts it directly into the DOM via innerHTML to render a breadcrumb, with no escaping. Because fragment data is never sent to the server, this is invisible to server-side logging and WAF rules, but still lets an attacker execute script in the victim's browser via a crafted link.",
+    "category": "Cross-Site Scripting",
+    "mitigation": "Replace the innerHTML assignment with a safe DOM API (e.g. textContent, or an escaping helper) for any value derived from the URL, hash fragment included."
+  },
+  {
+    "id": "T-016",
+    "title": "Invoice download endpoint accepts sequential numeric id with no ownership check",
+    "description": "The /invoices/{id}/download endpoint fetches and returns the PDF for the given invoice id without verifying that the requesting user's account owns that invoice. Because invoice ids are sequential integers, any authenticated user can enumerate ids to download other customers' invoices, which include billing addresses and partial payment details.",
+    "category": "Broken Access Control",
+    "mitigation": "Check that the authenticated user (or their organization) owns the requested resource before returning it, on every object-level endpoint, not only in the UI's navigation flow."
+  },
+  {
+    "id": "T-017",
+    "title": "User profile API returns any user's PII when userid parameter is changed",
+    "description": "The GET /users/{userid}/profile endpoint returns full profile data, including email, phone number and address, for whatever userid is supplied in the path, regardless of whether the caller's session belongs to that user or has any administrative relationship to them.",
+    "category": "Broken Access Control",
+    "mitigation": "Derive the target user from the authenticated session (or verify an explicit admin/support authorization) rather than trusting a client-supplied id; add an authorization test that asserts user A cannot read user B's profile."
+  },
+  {
+    "id": "T-018",
+    "title": "Internal admin export endpoint reachable by any authenticated role",
+    "description": "The /admin/export-all-users endpoint, intended for support staff, has no role check beyond requiring a valid session token. Any authenticated customer account, regardless of role, can call it directly and receive a full export of all users in the system.",
+    "category": "Broken Access Control",
+    "mitigation": "Add an explicit role/permission check on this endpoint before executing the business logic, and add automated tests calling it as a non-admin role to confirm it is rejected."
+  },
+  {
+    "id": "T-019",
+    "title": "Account email-change form has no CSRF token, state-changing GET request",
+    "description": "The account settings page changes the user's email address via a plain GET request with the new address as a query parameter, and the endpoint has no CSRF token or other origin check. A victim who is logged in and visits an attacker-controlled page containing an <img> tag pointing at this URL will have their account email silently changed.",
+    "category": "Cross-Site Request Forgery",
+    "mitigation": "Make state-changing operations use POST (never GET) and require a per-session CSRF token validated server-side; also set the session cookie's SameSite attribute to Lax or Strict."
+  },
+  {
+    "id": "T-020",
+    "title": "Payment method update endpoint accepts cross-site POST with ambient session cookie",
+    "description": "The /billing/payment-method endpoint accepts a POST request authenticated purely by the browser's ambient session cookie, with no CSRF token and no SameSite restriction on that cookie. A malicious page can auto-submit a hidden form to this endpoint from a victim's browser and change their stored payment method to attacker-controlled details.",
+    "category": "Cross-Site Request Forgery",
+    "mitigation": "Require a CSRF token validated against the session on this and every other state-changing billing endpoint, and set SameSite=Strict on the session cookie given the sensitivity of the action."
+  },
+  {
+    "id": "T-021",
+    "title": "Java application deserializes untrusted session payload leading to RCE",
+    "description": "The backend stores session state as a serialized Java object, base64-encoded in a cookie, and deserializes it directly on every request using ObjectInputStream with no type restriction. Known deserialization gadget chains in libraries already on the classpath can be used to achieve remote code execution purely by crafting the cookie value.",
+    "category": "Insecure Deserialization",
+    "mitigation": "Stop deserializing untrusted data with native object deserialization; move session state to a signed/encrypted opaque token or a server-side store keyed by a random session id, and if deserialization cannot be avoided, use a strict allow-list of permitted classes."
+  },
+  {
+    "id": "T-022",
+    "title": "Pickle-based cache deserializes attacker-controlled blob from Redis",
+    "description": "A caching layer stores pickled Python objects in Redis and deserializes them with pickle.loads() on read. Because the cache key and, in some code paths, part of the value are derived from request input, an attacker who can influence what gets written to that cache key can achieve arbitrary code execution when the poisoned entry is later read back and deserialized.",
+    "category": "Insecure Deserialization",
+    "mitigation": "Never use pickle for data that an untrusted actor can influence, even indirectly via a cache key collision; switch to a safe serialization format such as JSON for anything cache-adjacent to request input."
+  },
+  {
+    "id": "T-023",
+    "title": "XML parser allows external entity expansion (XXE) from uploaded file",
+    "description": "The bulk-import feature parses uploaded XML files using a parser configuration that has not disabled external entity resolution. A crafted XML file containing a DOCTYPE with an external entity reference can be used to read arbitrary local files on the server or perform SSRF via the entity's URL.",
+    "category": "Insecure Deserialization",
+    "mitigation": "Disable DTD processing and external entity resolution on the XML parser used for all untrusted input; prefer a parser library whose defaults are already secure."
+  },
+  {
+    "id": "T-024",
+    "title": "Role check happens only in UI, API endpoint allows member to call admin action",
+    "description": "The 'delete organization' button is hidden in the UI unless the current user's role is Owner, but the underlying DELETE /organizations/{id} endpoint performs no server-side role check at all. Any authenticated member of the organization can call the endpoint directly and delete it, regardless of their actual role.",
+    "category": "Privilege Escalation",
+    "mitigation": "Enforce role checks in the API layer itself, never relying on the UI to hide an action as the only control; add a test that calls this endpoint as a non-Owner role and asserts it is rejected."
+  },
+  {
+    "id": "T-025",
+    "title": "Horizontal privilege escalation: project membership not verified before file access",
+    "description": "The GET /projects/{project_id}/files/{file_id} endpoint checks that the requesting user is authenticated, but never checks that the user is actually a member of the project the file belongs to. A member of one project can access files belonging to a completely unrelated project by guessing or enumerating file ids.",
+    "category": "Privilege Escalation",
+    "mitigation": "Verify project membership (or equivalent object-level authorization) as part of every request that resolves a resource by id, not only authentication status."
+  },
+  {
+    "id": "T-026",
+    "title": "Container running as root allows escape to host after RCE in app",
+    "description": "The application's container image runs its main process as root with no user namespace remapping. Combined with a code execution vulnerability elsewhere in the stack, this removes a layer of containment: an attacker who achieves code execution inside the container has root inside it, which materially widens what a subsequent container-escape technique could reach on the host.",
+    "category": "Privilege Escalation",
+    "mitigation": "Run the application process as a non-root user in the container image (a USER directive with least privilege), and avoid granting the container capabilities it does not need."
+  },
+  {
+    "id": "T-027",
+    "title": "Passwords hashed with unsalted MD5",
+    "description": "User passwords are stored as an unsalted MD5 hash of the plaintext password. MD5 is fast to compute at scale and has no built-in salt, so a leaked password table is efficiently crackable via precomputed rainbow tables, and identical passwords across users produce identical hashes, revealing password reuse even before cracking.",
+    "category": "Weak Cryptography",
+    "mitigation": "Rehash all passwords with a slow, salted, purpose-built password hash (bcrypt, scrypt or Argon2) on next successful login, and require a forced reset for accounts that are never re-authenticated within a reasonable window."
+  },
+  {
+    "id": "T-028",
+    "title": "Password reset tokens generated from predictable, non-cryptographic PRNG seeded by timestamp",
+    "description": "The password-reset flow generates its one-time token using the language's default (non-cryptographic) random number generator, seeded from the current timestamp in milliseconds. Because the seed space is narrow and the generation algorithm is public, an attacker who knows roughly when a reset was requested can regenerate the same token and take over the account.",
+    "category": "Weak Cryptography",
+    "mitigation": "Generate reset tokens using a cryptographically secure random source with sufficient entropy (e.g. 128+ bits), and make tokens single-use and short-lived regardless."
+  },
+  {
+    "id": "T-029",
+    "title": "TLS certificate validation disabled in internal service client",
+    "description": "The HTTP client used to call an internal downstream service was configured with certificate verification disabled (a common 'fix' for a local certificate mismatch during development) and this configuration shipped to production. Any attacker in a position to intercept this internal traffic, including via a compromised node on the same network, can perform a man-in-the-middle attack undetected.",
+    "category": "Weak Cryptography",
+    "mitigation": "Never disable certificate verification outside of a local-only development flag that cannot be set in deployed environments; fix the underlying certificate/trust-store mismatch instead."
+  },
+  {
+    "id": "T-030",
+    "title": "Legacy encryption uses ECB mode, revealing repeated plaintext block patterns",
+    "description": "A legacy module that encrypts stored profile images uses AES in ECB mode. Because ECB encrypts identical plaintext blocks to identical ciphertext blocks, patterns in the underlying image data remain visible in the ciphertext, which has in practice allowed distinguishing between a handful of known reused image templates without decrypting them.",
+    "category": "Weak Cryptography",
+    "mitigation": "Replace ECB with an authenticated mode such as AES-GCM, using a unique nonce per encryption operation; re-encrypt existing stored data during a migration."
+  }
+]

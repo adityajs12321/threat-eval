@@ -1,0 +1,183 @@
+[
+  {
+    "qid": "Q01",
+    "query": "Customers can view other customers' order records just by changing the numeric ID in the URL; the API never checks who owns the record",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-016", "reason": "Sequential numeric invoice ids with no ownership check let users fetch other customers' data (IDOR)."},
+      {"id": "T-017", "reason": "Changing the userid path parameter returns another user's PII with no check that the caller owns it (IDOR)."},
+      {"id": "T-025", "reason": "Same object-level authorization gap filed under Privilege Escalation: file ids enumerable, project membership never verified."}
+    ],
+    "near_misses": [
+      {"id": "T-018", "reason": "Missing role check on an admin function, not per-object ownership."},
+      {"id": "T-024", "reason": "UI-only role check for an action; function-level, not object-level authorization."}
+    ]
+  },
+  {
+    "qid": "Q02",
+    "query": "Link-preview service fetches arbitrary user-supplied URLs from the backend, which could let someone hit the cloud metadata endpoint or internal services",
+    "phrasing": "lexical",
+    "relevant": [
+      {"id": "T-007", "reason": "Backend fetches a user-supplied webhook URL unrestricted, reaching the instance metadata service (SSRF)."},
+      {"id": "T-008", "reason": "Server-side fetch of an attacker-supplied image URL reaches internal-only services (SSRF)."},
+      {"id": "T-009", "reason": "Outbound URL fetcher for preview images can be pointed at internal addresses via DNS rebinding (SSRF)."}
+    ],
+    "near_misses": [
+      {"id": "T-023", "reason": "XXE can be used for SSRF, but the weakness is XML entity resolution, not a URL-fetch feature."}
+    ]
+  },
+  {
+    "qid": "Q03",
+    "query": "SVG and SAML uploads are processed by an XML library with default settings; a DOCTYPE in the file could make the server read /etc/passwd",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-023", "reason": "XML parser leaves external entity resolution enabled, so an uploaded file can read local files (XXE)."}
+    ],
+    "near_misses": [
+      {"id": "T-021", "reason": "Same 'Insecure Deserialization' category but Java object deserialization, a different mechanism."},
+      {"id": "T-022", "reason": "Same category but pickle deserialization, a different mechanism."}
+    ]
+  },
+  {
+    "qid": "Q04",
+    "query": "Sensitive credentials leak through error handling: when something fails, tokens and passwords end up in log output or error responses",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-010", "reason": "Error path logs the full request including the API key in the Authorization header."},
+      {"id": "T-012", "reason": "Unhandled exceptions serialize stack traces and local variables (including a DB password) into the HTTP response."}
+    ],
+    "near_misses": [
+      {"id": "T-011", "reason": "Secrets Exposure too, but via a committed config file, not error handling."}
+    ]
+  },
+  {
+    "qid": "Q05",
+    "query": "Internal service-to-service HTTP client is configured with verify=False, so TLS certificates are never checked",
+    "phrasing": "lexical",
+    "relevant": [
+      {"id": "T-029", "reason": "Certificate validation disabled in an internal HTTP client, enabling undetected MITM."}
+    ],
+    "near_misses": [
+      {"id": "T-030", "reason": "Weak Cryptography too, but ECB-mode encryption at rest, not transport validation."}
+    ]
+  },
+  {
+    "qid": "Q06",
+    "query": "The session cookie value stays the same before and after the user signs in",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-005", "reason": "Session identifier is not regenerated on login (session fixation)."}
+    ],
+    "near_misses": [
+      {"id": "T-006", "reason": "Also a session cookie issue, but about a pending-MFA state being accepted, not fixation."}
+    ]
+  },
+  {
+    "qid": "Q07",
+    "query": "Users can reach protected API endpoints after entering only their password, without completing the two-factor code",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-006", "reason": "Endpoints accept the pre-MFA 'pending' session cookie as fully authenticated, skipping the second factor."}
+    ],
+    "near_misses": [
+      {"id": "T-005", "reason": "Session handling flaw around login, but fixation rather than an MFA skip."},
+      {"id": "T-004", "reason": "Authentication Bypass via forged JWTs; different mechanism."}
+    ]
+  },
+  {
+    "qid": "Q08",
+    "query": "Bearer token verification trusts the 'alg' header, so an attacker can forge a token with an admin role",
+    "phrasing": "lexical",
+    "relevant": [
+      {"id": "T-004", "reason": "JWT algorithm confusion (RS256 to HS256) lets an attacker forge tokens with chosen role claims."}
+    ],
+    "near_misses": [
+      {"id": "T-024", "reason": "Results in admin actions by non-admins, but via a missing server-side role check, not token forgery."}
+    ]
+  },
+  {
+    "qid": "Q09",
+    "query": "Admin-only features are just hidden in the frontend; any logged-in regular user can call the backend endpoint directly",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-018", "reason": "Admin export endpoint has no role check beyond a valid session; any authenticated user can call it."},
+      {"id": "T-024", "reason": "Same missing server-side role check filed under Privilege Escalation: hidden in the UI, endpoint unprotected."}
+    ],
+    "near_misses": [
+      {"id": "T-016", "reason": "Broken Access Control, but object ownership (IDOR), not role/function-level checks."},
+      {"id": "T-017", "reason": "Broken Access Control, but object ownership (IDOR)."}
+    ]
+  },
+  {
+    "qid": "Q10",
+    "query": "A malicious website can make a logged-in user's browser silently change their account settings",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-019", "reason": "Email change via GET with no CSRF token; an attacker page's <img> tag triggers it."},
+      {"id": "T-020", "reason": "Payment-method POST accepts ambient session cookie with no CSRF token or SameSite."}
+    ],
+    "near_misses": [
+      {"id": "T-013", "reason": "Runs attacker script in the victim's browser (XSS), a different attack from cross-site request forgery."}
+    ]
+  },
+  {
+    "qid": "Q11",
+    "query": "Single-page app takes location.hash and writes it into innerHTML to render the current tab name",
+    "phrasing": "lexical",
+    "relevant": [
+      {"id": "T-015", "reason": "Client-side router inserts the URL fragment into the DOM via innerHTML (DOM-based XSS)."}
+    ],
+    "near_misses": [
+      {"id": "T-013", "reason": "XSS, but stored and server-side sanitizer failure."},
+      {"id": "T-014", "reason": "XSS, but reflected via server-side template interpolation."}
+    ]
+  },
+  {
+    "qid": "Q12",
+    "query": "Reporting service builds its database statements by string-concatenating user-supplied filter and sort values",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-001", "reason": "Raw search parameter concatenated into the SQL WHERE clause."},
+      {"id": "T-002", "reason": "Username interpolated directly into the SQL login query."},
+      {"id": "T-003", "reason": "Client-controlled sort parameter passed into ORDER BY without allow-listing."}
+    ],
+    "near_misses": [
+      {"id": "T-014", "reason": "Unescaped user input in a search feature, but injected into HTML, not SQL."}
+    ]
+  },
+  {
+    "qid": "Q13",
+    "query": "Backend restores objects from a cookie or cache using a native serialization format, allowing remote code execution with a crafted payload",
+    "phrasing": "lexical",
+    "relevant": [
+      {"id": "T-021", "reason": "Java ObjectInputStream on a cookie payload with gadget chains gives RCE."},
+      {"id": "T-022", "reason": "pickle.loads() on attacker-influenced Redis cache entries gives RCE."}
+    ],
+    "near_misses": [
+      {"id": "T-023", "reason": "Filed under Insecure Deserialization but is XXE: file read/SSRF, not object deserialization."},
+      {"id": "T-026", "reason": "Mentions RCE, but about container privileges after RCE, not how RCE is achieved."}
+    ]
+  },
+  {
+    "qid": "Q14",
+    "query": "If the user table leaks, passwords could be cracked quickly because they're stored with a fast hash and no salt",
+    "phrasing": "lexical",
+    "relevant": [
+      {"id": "T-027", "reason": "Passwords stored as unsalted MD5, crackable via rainbow tables."}
+    ],
+    "near_misses": [
+      {"id": "T-028", "reason": "Password-related Weak Cryptography, but predictable reset tokens, not password storage."}
+    ]
+  },
+  {
+    "qid": "Q15",
+    "query": "Account recovery codes are generated with Math.random() seeded from the clock, so an attacker can guess them",
+    "phrasing": "paraphrase",
+    "relevant": [
+      {"id": "T-028", "reason": "Password-reset tokens from a non-cryptographic PRNG seeded by timestamp can be regenerated."}
+    ],
+    "near_misses": [
+      {"id": "T-027", "reason": "Weak password crypto, but hashing at rest rather than token generation."}
+    ]
+  }
+]
