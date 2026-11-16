@@ -83,23 +83,29 @@ Change at k=5 relative to the baseline:
 
 ### Per query (nDCG@5, hits / relevant)
 
-| Query | baseline | baseline-extra | char-ngram | embedding |
-|---|---|---|---|---|
-| Q01 IDOR / BOLA | 0.65 (2/3) | **0.47 (1/3)** ▼ | 0.95 (3/3) | 0.67 (2/3) |
-| Q02 SSRF via link unfurl | 0.00 (0/3) | 0.23 (1/3) | 0.30 (1/3) | 0.18 (1/3) |
-| Q03 XXE in .docx import | 0.50 (1/1) | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
-| Q04 credentials exposed | 0.20 (1/3) | 0.47 (1/3) | 0.47 (1/3) | 1.00 (3/3) |
-| Q05 TLS validation off | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
-| Q06 session fixation | 0.50 (1/1) | 0.50 (1/1) | 0.63 (1/1) | 1.00 (1/1) |
-| Q07 2FA bypass | 0.50 (1/1) | 0.63 (1/1) | 0.50 (1/1) | 1.00 (1/1) |
-| Q08 JWT alg confusion | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
-| Q09 UI-only role check | 0.00 (0/2) | 0.54 (2/2) | 0.61 (1/2) | 1.00 (2/2) |
-| Q10 CSRF | 0.39 (1/2) | 0.85 (2/2) | 0.92 (2/2) | 0.69 (2/2) |
-| Q11 XSS (all variants) | 0.47 (1/3) | 0.47 (1/3) | 0.77 (2/3) | 1.00 (3/3) |
-| Q12 SQL injection | 0.70 (2/3) | 0.70 (2/3) | 0.70 (2/3) | 0.77 (2/3) |
-| Q13 unsafe deserialization | 0.88 (2/2) | 1.00 (2/2) | 1.00 (2/2) | 0.92 (2/2) |
-| Q14 container as root | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
-| Q15 password-reset takeover | 0.63 (1/1) | **0.50 (1/1)** ▼ | 0.63 (1/1) | 0.63 (1/1) |
+| Query | baseline | char-ngram | embedding |
+|---|---|---|---|
+| Q01 IDOR / BOLA | 0.65 (2/3) | 0.95 (3/3) | 0.67 (2/3) |
+| Q02 SSRF via link unfurl | 0.00 (0/3) | 0.30 (1/3) | 0.18 (1/3) |
+| Q03 XXE in .docx import | 0.50 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
+| Q04 credentials exposed | 0.20 (1/3) | 0.47 (1/3) | 1.00 (3/3) |
+| Q05 TLS validation off | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
+| Q06 session fixation | 0.50 (1/1) | 0.63 (1/1) | 1.00 (1/1) |
+| Q07 2FA bypass | 0.50 (1/1) | 0.50 (1/1) | 1.00 (1/1) |
+| Q08 JWT alg confusion | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
+| Q09 UI-only role check | 0.00 (0/2) | 0.61 (1/2) | 1.00 (2/2) |
+| Q10 CSRF | 0.39 (1/2) | 0.92 (2/2) | 0.69 (2/2) |
+| Q11 XSS (all variants) | 0.47 (1/3) | 0.77 (2/3) | 1.00 (3/3) |
+| Q12 SQL injection | 0.70 (2/3) | 0.70 (2/3) | 0.77 (2/3) |
+| Q13 unsafe deserialization | 0.88 (2/2) | 1.00 (2/2) | 0.92 (2/2) |
+| Q14 container as root | 1.00 (1/1) | 1.00 (1/1) | 1.00 (1/1) |
+| Q15 password-reset takeover | 0.63 (1/1) | 0.63 (1/1) | 0.63 (1/1) |
+
+**Baseline.** The top result is relevant for only 7 of 15 queries, and 12 of the 28 relevant records are missing from the top 5. Raising k to 10 recovers just 2 of them: the rest share no words with their query and sit at ranks 15–26, so the problem is matching, not cut-off.
+
+**Char-ngram.** The top result is relevant for 11 of 15 queries, and every query has a relevant record in its top 3 (MRR is flat at 0.856 from k=3). 7 relevant records are still missed, mostly in Q02, Q04 and Q11, where the other relevant records use different words rather than different forms of the same word. Part of the gain is coincidental (see below).
+
+**Embedding.** The top result is relevant for 12 of 15 queries, and only 4 of 28 relevant records are missed. Its MRR and nDCG are the closest of the three, meaning that when it finds one relevant record it usually finds the related ones too, because it matches meaning rather than words.
 
 ## The scoped change: character n-gram TF-IDF
 
@@ -117,14 +123,14 @@ TfidfVectorizer(analyzer="char_wb", ngram_range=(3, 5), sublinear_tf=True)
 
 ### Genuine gains
 
-| Query | Record: rank before → after | What now matches |
+
+| Query | Record: rank before → after | New match |
 |---|---|---|
 | Q09 UI-only role check | T-024: 25 → **1** | "buttons" ~ "button", "non-owners" ~ "Owner" |
 | Q11 XSS | T-015: 10 → 2 | "rendered" ~ "render", "JavaScript" ~ "script" |
-| Q13 deserialization | T-021: 4 → 2 | "objects" ~ "object" |
-| Q04 credentials exposed | T-011: 4 → 1 | "credentials" ~ "credential", "production" |
-| Q03 XXE in .docx import | T-023: 3 → 1 | "importer" ~ "import", "parses" |
-| Q10 CSRF | T-019: 2 → 1, T-020: 6 → 3 | "changes" ~ "change", "victim's" |
+| Q13 deserialization | T-021: 4 → 2 | "objects" ~ "object", "exec" ~ "execution" |
+| Q04 credentials exposed | T-011: 4 → 1 | "credentials" ~ "credential" |
+| Q03 XXE in .docx import | T-023: 3 → 1 | "importer" ~ "import" |
 
 ### Coincidental gains
 
