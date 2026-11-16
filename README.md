@@ -45,7 +45,7 @@ To query a retriever directly:
 
 All metrics use binary relevance from `gold_set.json` and are averaged over the 15 queries.
 
-- **Precision@k** = hits in top k / min(k, number of relevant records). The cap means a query with one relevant record that ranks it in the top 5 scores 1.0, not 0.2. Consequence: once k ≥ number of relevant records, P@k equals R@k, so precision does not penalise irrelevant results. MRR and nDCG cover ranking quality instead.
+- **Precision@k** = hits in top k / k (standard, unnormalised). k is capped only at the corpus size (30). Most queries have 1–3 relevant records, so even a perfect retriever can't reach 1.0: the best achievable mean on this gold set is **P@1 1.000, P@3 0.622, P@5 0.373, P@10 0.187**. Read P@k against that ceiling, not against 1.0.
 - **Recall@k** = hits in top k / number of relevant records.
 - **MRR@k** = 1 / rank of the first relevant record (0 if none in the top k).
 - **nDCG@k** = DCG / ideal DCG, where a hit at rank i contributes 1 / log2(i + 1).
@@ -57,24 +57,25 @@ All metrics use binary relevance from `gold_set.json` and are averaged over the 
 | Retriever | k | P@k | R@k | MRR | nDCG |
 |---|---|---|---|---|---|
 | baseline | 1 | 0.467 | 0.300 | 0.467 | 0.467 |
-| baseline | 3 | 0.622 | 0.622 | 0.600 | 0.518 |
-| baseline | 5 | 0.700 | 0.700 | 0.617 | 0.561 |
-| baseline | 10 | 0.756 | 0.756 | 0.617 | 0.585 |
+| baseline | 3 | 0.289 | 0.622 | 0.600 | 0.518 |
+| baseline | 5 | 0.213 | 0.700 | 0.617 | 0.561 |
+| baseline | 10 | 0.120 | 0.756 | 0.617 | 0.585 |
 | baseline-extra | 1 | 0.667 | 0.422 | 0.667 | 0.667 |
-| baseline-extra | 3 | 0.733 | 0.733 | 0.789 | 0.660 |
-| baseline-extra | 5 | 0.800 | 0.800 | 0.789 | 0.691 |
-| baseline-extra | 10 | 0.867 | 0.867 | 0.789 | 0.720 |
+| baseline-extra | 3 | 0.378 | 0.733 | 0.789 | 0.660 |
+| baseline-extra | 5 | 0.253 | 0.800 | 0.789 | 0.691 |
+| baseline-extra | 10 | 0.147 | 0.867 | 0.789 | 0.720 |
 | embedding | 1 | 0.800 | 0.556 | 0.800 | 0.800 |
-| embedding | 3 | 0.867 | 0.867 | 0.867 | 0.832 |
-| embedding | 5 | **0.911** | **0.911** | **0.880** | **0.857** |
-| embedding | 10 | 0.933 | 0.933 | 0.880 | 0.867 |
+| embedding | 3 | 0.489 | 0.867 | 0.867 | 0.832 |
+| embedding | 5 | **0.320** | **0.911** | **0.880** | **0.857** |
+| embedding | 10 | 0.167 | 0.933 | 0.880 | 0.867 |
+| *ceiling (perfect retriever)* | 5 | *0.373* | *1.000* | *1.000* | *1.000* |
 
 Change at k=5 relative to the baseline:
 
-| | ΔR@5 | ΔMRR | ΔnDCG@5 | Queries better / same / worse (nDCG@5) |
-|---|---|---|---|---|
-| baseline-extra | +0.100 | +0.172 | +0.130 | 7 / 6 / 2 |
-| embedding | +0.211 | +0.263 | +0.296 | 11 / 4 / 0 |
+| | ΔP@5 | ΔR@5 | ΔMRR | ΔnDCG@5 | Queries better / same / worse (nDCG@5) |
+|---|---|---|---|---|---|
+| baseline-extra | +0.040 | +0.100 | +0.172 | +0.130 | 7 / 6 / 2 |
+| embedding | +0.107 | +0.211 | +0.263 | +0.296 | 11 / 4 / 0 |
 
 ### Per query (nDCG@5, hits / relevant)
 

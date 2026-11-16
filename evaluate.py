@@ -34,10 +34,9 @@ def load_set(path: Path) -> list[dict]:
 def precision_recall_at_k(
     retrieved: list[str], relevant: set[str], k: int, n_docs: int
 ) -> tuple[float, float, int]:
-    k_ret = min(k, n_docs)
-    k_prec = min(k_ret, len(relevant))
+    k_ret = min(k, n_docs)  # can't retrieve more records than the corpus holds
     hits = len(set(retrieved[:k_ret]) & relevant)
-    precision = hits / k_prec if k_prec else 0.0
+    precision = hits / k_ret if k_ret else 0.0  # standard precision@k
     recall = hits / len(relevant) if relevant else 0.0
     return precision, recall, hits
 
