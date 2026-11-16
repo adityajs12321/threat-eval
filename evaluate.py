@@ -1,4 +1,4 @@
-"""Evaluate a retriever against gold_set.json with precision@k and recall@k.
+"""Evaluate a retriever against gold_set.json with precision@k, recall@k, MRR and nDCG scores.
 
 Usage:
     python evaluate.py --k 5
@@ -14,9 +14,19 @@ from pathlib import Path
 from baseline_retriever import CORPUS_PATH, BaselineRetriever
 
 GOLD_PATH = Path(__file__).resolve().parent / "gold_set.json"
+def _embedding(corpus_path: Path):
+    from embedding_retriever import EmbeddingRetriever
+    return EmbeddingRetriever(corpus_path)
 
 
-def load_gold(path: Path) -> list[dict]:
+RETRIEVERS = {
+    "baseline": BaselineRetriever,
+    "baseline-extra": lambda corpus_path: BaselineRetriever(corpus_path, index_extra_fields=True),
+    "embedding": _embedding,
+}
+
+
+def load_set(path: Path) -> list[dict]:
     data = json.loads(Path(path).read_text(encoding="utf-8"))
     return data["queries"] if isinstance(data, dict) else data
 
@@ -100,12 +110,15 @@ def print_report(result: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Evaluate the retriever on the gold set.")
     parser.add_argument("--k", type=int, nargs="+", default=[5], help="default 5.")
-    parser.add_argument("--gold", type=Path, default=GOLD_PATH)
-    parser.add_argument("--corpus", type=Path, default=CORPUS_PATH)
+    parser.add_argument(
+        "--retriever", choices=sorted(RETRIEVERS), default="baseline",
+        help="Which retriever to evaluate.",
+    )
     args = parser.parse_args()
 
-    retriever = BaselineRetriever(args.corpus)
-    gold = load_gold(args.gold)
+    retriever = RETRIEVERS[args.retriever](CORPUS_PATH)
+    print(f"Retriever: {args.retriever}")
+    gold = load_set(GOLD_PATH)
     summary = []
     for k in args.k:
         result = evaluate(retriever, gold, k)

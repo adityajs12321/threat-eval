@@ -36,16 +36,20 @@ class BaselineRetriever:
     just scores the query against that fixed matrix. Nothing is cached or
     persisted across runs."""
 
-    def __init__(self, corpus_path: Path = CORPUS_PATH):
+    def __init__(self, corpus_path: Path = CORPUS_PATH, index_extra_fields: bool = False):
         self.records = json.loads(Path(corpus_path).read_text(encoding="utf-8"))
-        self._texts = [self._doc_text(r) for r in self.records]
+        self.index_extra_fields = index_extra_fields
+        self._texts = [
+            f"{r['category']} {self._doc_text(r)} {r['mitigation']}"
+            if index_extra_fields
+            else self._doc_text(r)
+            for r in self.records
+        ]
         self.vectorizer = TfidfVectorizer(stop_words="english")
         self._matrix = self.vectorizer.fit_transform(self._texts)
 
     @staticmethod
     def _doc_text(record: dict) -> str:
-        # Title + description only. Mitigation text is left out of the index
-        # entirely -- whether that's the right call is fair game to question.
         return f"{record['title']} {record['description']}"
 
     def retrieve(self, query: str, k: int = 5) -> list[ScoredRecord]:
@@ -65,12 +69,14 @@ class BaselineRetriever:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Query the baseline threat retriever.")
-    parser.add_argument("query", help="Free-text query, e.g. a threat title or system description snippet.")
-    parser.add_argument("--k", type=int, default=5, help="Number of results to return (default 5).")
-    parser.add_argument("--corpus", type=Path, default=CORPUS_PATH, help="Path to threat_records.json.")
+    parser.add_argument("query", help="Free-text query.")
+    parser.add_argument("--k", type=int, default=5, help="Number of results to return.")
+    parser.add_argument(
+        "--index-extra-fields", action="store_true"
+    )
     args = parser.parse_args()
 
-    retriever = BaselineRetriever(args.corpus)
+    retriever = BaselineRetriever(CORPUS_PATH, index_extra_fields=args.index_extra_fields)
     results = retriever.retrieve(args.query, k=args.k)
 
     print(f"Query: {args.query!r}\n")
